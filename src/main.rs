@@ -9,16 +9,14 @@ use std::time::{Duration, Instant};
 const TEST_PERIOD: Duration = Duration::from_secs(5);
 const TEST_INTERVAL: Duration = Duration::from_secs(1);
 
-fn run_sync(down: &Semaphore, up: &Semaphore, cancel: &AtomicBool) -> (usize, Duration) {
-    let start = Instant::now();
+fn run_sync(down: &Semaphore, up: &Semaphore, cancel: &AtomicBool) -> usize {
     let mut count = 0;
     while !cancel.load(Ordering::Relaxed) {
         down.down();
         count += 1;
         up.up();
     }
-    let elapsed = start.elapsed();
-    (count, elapsed)
+    count
 }
 
 fn test_sync(core1: usize, core2: usize) {
@@ -37,7 +35,11 @@ fn test_sync(core1: usize, core2: usize) {
         let s2 = s2.clone();
         std::thread::spawn(move || {
             affinity::set_affinity(core1);
-            run_sync(&s1, &s2, &cancel)
+            s1.down();
+            let start = Instant::now();
+            let count = run_sync(&s1, &s2, &cancel);
+            let elapsed = start.elapsed();
+            (count, elapsed)
         })
     };
     let t2 = {
@@ -46,6 +48,7 @@ fn test_sync(core1: usize, core2: usize) {
         let s2 = s2.clone();
         std::thread::spawn(move || {
             affinity::set_affinity(core2);
+            s1.up_n(2);
             run_sync(&s2, &s1, &cancel)
         })
     };
