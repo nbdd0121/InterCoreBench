@@ -19,10 +19,23 @@ fn run_sync(down: &Semaphore, up: &Semaphore, cancel: &AtomicBool) -> usize {
     count
 }
 
+#[repr(align(64))]
+struct CacheAligned<T>(T);
+
+impl<T> std::ops::Deref for CacheAligned<T> {
+    type Target = T;
+
+    #[inline]
+    fn deref(&self) -> &T {
+        &self.0
+    }
+}
+
 fn test_sync(core1: usize, core2: usize) {
+
     let cancel = Arc::new(AtomicBool::new(false));
-    let s1 = Arc::new(Semaphore::new(1));
-    let s2 = Arc::new(Semaphore::new(0));
+    let s1 = Arc::new(CacheAligned(Semaphore::new(0)));
+    let s2 = Arc::new(CacheAligned(Semaphore::new(0)));
 
     print!(
         "Testing latency between logical core {} and {}... ",
